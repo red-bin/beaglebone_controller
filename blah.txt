@@ -1,0 +1,264 @@
+scriptDir="/controlM63/ecs600/sscp/matt_script"
+
+
+
+set -A gc_list `cat gc_list.txt`
+
+set -A mdgc_list `cat mdgc_list.txt`
+
+set -A bc_list `cat bc_list.txt`
+
+set -A hyb_bc_list `cat hyb_bc_list.txt`
+
+
+
+set -A all_list ${gc_list[*]} ${mdgc_list[*]} ${bc_list[*]} set -A all_list_no_tradeng prdgc01a prdgc01b ${mdgc_list[*]} ${bc_list[*]}
+
+
+
+set -A table_list SYS-SBT-TRUNC-HIST SYS-SBT-TradeengSys SYS-SBT-StopInfraEOD SYS-SBT-TradeengCln
+
+
+
+tableCount=0
+
+while [ $tableCount -lt ${#table_list[*]} ] ; do
+
+table=${table_list[$tableCount]}
+
+case $table in
+
+SYS-SBT-TRUNC-HIST )
+
+set -A group_list SYS-SBT-TRUNC-HIST
+
+expFile=`ls /controlM63/ecs600/sscp/tableExports/SYS-SBT-TRUNC-HIST*`
+
+;;
+
+SYS-SBT-TradeengSys )
+
+set -A group_list stopTradeengSys stopTradeengSys-hist
+
+expFile=`ls /controlM63/ecs600/sscp/tableExports/SYS-SBT-TradeengSys*`
+
+;;
+
+SYS-SBT-StopInfraEOD )
+
+set -A group_list stopInfraSys stopInfraBase infraEOD infraArchive
+
+expFile=`ls /controlM63/ecs600/sscp/tableExports/SYS-SBT-StopInfraEOD*`
+
+;;
+
+SYS-SBT-TradeengCln )
+
+set -A group_list tradengCln tradengCln-hist
+
+expFile=`ls /controlM63/ecs600/sscp/tableExports/SYS-SBT-TradeengCln*`
+
+;;
+
+esac
+
+tableCount=$(($tableCount+1))
+
+
+
+cat $expFile | tr -d '\034' | tr -d '\035' | tr -d '\036' | tr -d '\037' | tr -d '\036' | tr '\033' "," | grep JOB, > $scriptDir/tmpFile.txt
+
+groupCount=0
+
+while [ $groupCount -lt ${#group_list[*]} ] ; do
+
+group=${group_list[$groupCount]}
+
+case $group in
+
+SYS-SBT-TRUNC-HIST )
+
+command=""
+
+set -A server_list ${bc_list[*]}
+
+                                exclusion=""
+
+                                inclusion=""
+
+;;
+
+stopTradeengSys )
+
+command=""
+
+set -A server_list ${all_list_no_tradeng[*]}
+
+                                exclusion=HS_
+
+                                inclusion=""
+
+;;
+
+stopTradeengSys-hist )
+
+command=""
+
+                                server_list ${all_list_no_tradeng[*]}
+
+                                inclusion=HS_
+
+                                exclusion=""
+
+;;
+
+stopInfraSys )
+
+command=""
+
+set -A server_list ${#all_list[*]}
+
+                                exclusion=""
+
+                                inclusion=""
+
+;;
+
+stopInfraBase )
+
+                                command=stopInfraBase
+
+set -A server_list ${#all_list[*]}
+
+                                exclusion=""
+
+                                inclusion=""
+
+;;
+
+infraEOD )
+
+command=InfraEOD
+
+set -A server_list ${#all_list[*]}
+
+                                exclusion=""
+
+                                inclusion=""
+
+;;
+
+infraArchive )
+
+                                command=InfraArchive
+
+                                set -A server_list ${#all_list[*]}
+
+                                exclusion=""
+
+                                inclusion=""
+
+;;
+
+tradengCln )
+
+                                command=""
+
+set -A server_list ${all_list_no_tradeng[*]}
+
+                                exclusion=HS_
+
+inclusion=""
+
+;;
+
+tradengCln-hist )
+
+command=""
+
+                                set -A server_list ${all_list_no_tradeng[*]}
+
+                                exclusion=""
+
+                                inclusion=HS_
+
+;;
+
+esac
+
+
+
+echo "Checking $group"
+
+: > tmpList.txt
+
+i=0
+
+while [ $i -lt ${#server_list[*]} ] ; do
+
+host=${#server_list[$i]}
+
+reOcc=""
+
+echo "Got here!"
+
+while read LINE ; do
+
+if [ "`echo $LINE | nawk -F, '{print $15}'`" = $host ] ; then
+
+if [ "$exclusion" != "" ] ; then
+
+if [ "$inclusion" != "" ] ; then
+
+reOcc=`echo $LINE | grep -v $exclusion | grep $inclusion`
+
+else
+
+reOcc=`echo $LINE | grep -v $exclusion`
+
+fi
+
+else
+
+if [ "$inclusion" != "" ] ; then
+
+reOcc=`echo $LINE | grep $inclusion`
+
+else
+
+reOcc=`echo $LINE`
+
+fi
+
+fi
+
+if [ "$reOcc" != "" ] ; then
+
+echo $host >> tmpList.txt
+
+fi
+
+done < tmpFile.txt
+
+if [ "$group" = "SYS-SBT-TRUNC-HIST" ] ; then
+
+i=$(($i+2))
+
+else
+
+i=$(($i+1))
+
+fi
+
+done
+
+        groupCount=$(($groupCount+1))
+
+done
+
+done
+
+
+
+sleep 20
+
